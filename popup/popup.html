@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <header class="header">
+      <h1>Agentation</h1>
+      <span class="version">v1.0.0</span>
+    </header>
+
+    <div class="section">
+      <label class="toggle">
+        <input type="checkbox" id="enabled">
+        <span class="toggle-label">Enabled</span>
+      </label>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <h2>MCP Sync</h2>
+      <label class="toggle">
+        <input type="checkbox" id="mcpSync">
+        <span class="toggle-label">Send to MCP server</span>
+      </label>
+      <div class="field">
+        <label for="mcpUrl">Server URL</label>
+        <input type="url" id="mcpUrl" placeholder="http://localhost:4747">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <h2>Current Page</h2>
+      <div class="status" id="status">
+        <span class="dot dot--off"></span>
+        <span id="statusText">Not injected</span>
+      </div>
+      <div class="field" id="sessionField" style="display:none;">
+        <label>Session ID</label>
+        <div class="copyable">
+          <code id="sessionId"></code>
+          <button id="copySession" title="Copy">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section">
+      <h2>Disabled Sites</h2>
+      <p class="hint">One hostname per line. The widget won't load on these sites.</p>
+      <textarea id="disabledSites" rows="3" placeholder="example.com&#10;staging.myapp.dev"></textarea>
+    </div>
+
+    <footer class="footer">
+      <button id="save" class="btn-primary">Save</button>
+    </footer>
+  </div>
+
+  <script src="../dist/popup.js"></script>
+</body>
+</html>
