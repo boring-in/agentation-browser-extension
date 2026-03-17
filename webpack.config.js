@@ -1,4 +1,7 @@
 const path = require('path');
+const { DefinePlugin } = require('webpack');
+
+const agentationVersion = require('./node_modules/agentation/package.json').version;
 
 module.exports = {
   entry: {
@@ -23,6 +26,13 @@ module.exports = {
       },
     ],
   },
+  plugins: [
+    new DefinePlugin({
+      __AGENTATION_VERSION__: JSON.stringify(agentationVersion),
+    }),
+  ],
   // Bundle everything — no host page dependencies
   externals: {},
+  // Chrome extensions load locally — web asset size limits don't apply
+  performance: false,
 };

@@ -16,23 +16,16 @@ body {
   padding: 16px;
 }
 
-.header {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 12px;
+.version-update {
+  font-size: 10px;
+  color: #f59e0b;
+  background: #fef3c7;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: default;
 }
 
-.header h1 {
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.version {
-  font-size: 11px;
-  color: #888;
-}
-
+/* Sections */
 .section {
   margin: 12px 0;
 }
@@ -40,10 +33,20 @@ body {
 .section h2 {
   font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
   color: #666;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   margin-bottom: 8px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.section-header h2 {
+  margin-bottom: 0;
+  flex: 1;
 }
 
 .divider {
@@ -52,16 +55,14 @@ body {
   margin: 12px 0;
 }
 
-/* Toggle switch */
-.toggle {
+/* Toggle in header line */
+.header-toggle {
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  margin-bottom: 8px;
 }
 
-.toggle input[type="checkbox"] {
+.header-toggle input[type="checkbox"] {
   appearance: none;
   width: 36px;
   height: 20px;
@@ -73,7 +74,7 @@ body {
   flex-shrink: 0;
 }
 
-.toggle input[type="checkbox"]::after {
+.header-toggle input[type="checkbox"]::after {
   content: '';
   position: absolute;
   top: 2px;
@@ -85,64 +86,22 @@ body {
   transition: transform 0.2s;
 }
 
-.toggle input[type="checkbox"]:checked {
+.header-toggle input[type="checkbox"]:checked {
   background: #22c55e;
 }
 
-.toggle input[type="checkbox"]:checked::after {
+.header-toggle input[type="checkbox"]:checked::after {
   transform: translateX(16px);
 }
 
-.toggle-label {
-  font-size: 13px;
-}
-
-/* Fields */
-.field {
-  margin-top: 8px;
-}
-
-.field label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: #666;
-  margin-bottom: 4px;
-}
-
-.field input[type="url"],
-textarea {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 12px;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.field input[type="url"]:focus,
-textarea:focus {
-  border-color: #3b82f6;
-}
-
-textarea {
-  resize: vertical;
-}
-
-.hint {
-  font-size: 11px;
-  color: #999;
-  margin-bottom: 6px;
-}
-
-/* Status */
-.status {
+/* Status row — dot + text under section header */
+.status-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 11px;
+  color: #888;
+  min-height: 20px;
 }
 
 .dot {
@@ -158,6 +117,63 @@ textarea {
 
 .dot--off {
   background: #d1d5db;
+}
+
+/* MCP detail — slide animation */
+.mcp-detail {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.25s ease;
+  margin-top: 0;
+}
+
+.mcp-detail.visible {
+  max-height: 50px;
+  opacity: 1;
+  margin-top: 8px;
+}
+
+/* Inline field (label + input on one row) */
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-inline label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.field-inline input[type="url"] {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.field-inline input[type="url"]:focus {
+  border-color: #3b82f6;
+}
+
+/* Fields */
+.field {
+  margin-top: 8px;
+}
+
+.field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 4px;
 }
 
 /* Copyable */
@@ -197,33 +213,92 @@ textarea {
   background: #e5e5e5;
 }
 
-/* Footer */
-.footer {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.btn-primary {
-  background: #3b82f6;
-  color: #fff;
-  border: none;
-  padding: 6px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
+/* Copy MCP command button */
+.btn-copy-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  background: #f5f5f5;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  color: #666;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.15s;
 }
 
-.btn-primary:hover {
-  background: #2563eb;
+.btn-copy-cmd:hover {
+  background: #e5e5e5;
+  color: #333;
 }
 
-.btn-primary:active {
-  background: #1d4ed8;
+.btn-copy-cmd.copied {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #16a34a;
 }
 
-.saved-flash {
-  background: #22c55e !important;
+/* Blocked sites */
+.btn-block-site {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.btn-block-site:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #333;
+}
+
+.btn-block-site strong {
+  font-weight: 600;
+  color: #333;
+}
+
+.blocked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.blocked-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #333;
+}
+
+.blocked-item button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.blocked-item button:hover {
+  color: #ef4444;
 }

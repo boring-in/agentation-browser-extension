@@ -25,10 +25,9 @@ export function setConfig(config: ExtensionConfig, cb?: () => void): void {
   chrome.storage.sync.set(config as unknown as Record<string, unknown>, cb ?? (() => {}));
 }
 
-export type MessageType =
-  | { type: 'GET_CONFIG' }
-  | { type: 'CONFIG_CHANGED'; config: ExtensionConfig }
-  | { type: 'TOGGLE_WIDGET' }
-  | { type: 'SESSION_CREATED'; sessionId: string }
-  | { type: 'GET_STATUS' }
-  | { type: 'STATUS'; injected: boolean; sessionId: string | null };
+/** Check whether a hostname matches any entry in the disabled-sites list. */
+export function isSiteDisabled(hostname: string, disabledSites: string[]): boolean {
+  return disabledSites.some(
+    (site) => hostname === site || hostname.endsWith(`.${site}`)
+  );
+}

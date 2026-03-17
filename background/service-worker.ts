@@ -1,11 +1,8 @@
 import { getConfig } from '../content/types';
 
 function updateBadge(enabled: boolean): void {
-  const text = enabled ? 'ON' : '';
-  const color = enabled ? '#22c55e' : '#6b7280';
-
-  chrome.action.setBadgeText({ text });
-  chrome.action.setBadgeBackgroundColor({ color });
+  chrome.action.setBadgeText({ text: ' ' });
+  chrome.action.setBadgeBackgroundColor({ color: enabled ? '#22c55e' : '#9ca3af' });
 }
 
 // Set initial badge state
@@ -13,17 +10,16 @@ getConfig((config) => {
   updateBadge(config.enabled);
 });
 
-// Update badge when config changes
+// Single listener for all storage changes
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'sync' && changes.enabled) {
-    updateBadge(changes.enabled.newValue as boolean);
-  }
-});
-
-// Forward config changes to all tabs
-chrome.storage.onChanged.addListener((_changes, area) => {
   if (area !== 'sync') return;
 
+  // Update badge if enabled changed
+  if (changes.enabled) {
+    updateBadge(changes.enabled.newValue as boolean);
+  }
+
+  // Build config from changes and broadcast to all tabs
   getConfig((config) => {
     chrome.tabs.query({}, (tabs) => {
       for (const tab of tabs) {
@@ -31,9 +27,7 @@ chrome.storage.onChanged.addListener((_changes, area) => {
           chrome.tabs.sendMessage(tab.id, {
             type: 'CONFIG_CHANGED',
             config,
-          }).catch(() => {
-            // Tab may not have content script loaded
-          });
+          }).catch(() => {});
         }
       }
     });
