@@ -6,6 +6,7 @@ Chrome extension that injects the [Agentation](https://github.com/benjitaylor/ag
 
 - **One-click element selection** — click any element on a page to highlight it and grab its selector
 - **Annotation sync** — annotations (add, edit, delete, clear) are forwarded to the MCP server in real-time
+- **Console error capture** — intercepts `console.error`, `window.onerror`, and unhandled promise rejections; deduplicated and sent to MCP as annotations or copied as markdown
 - **Project ID** — each page is tagged with `hostname:port` so AI agents can filter by project
 - **MCP server status** — popup shows whether the MCP server is online or offline
 - **Auto-save** — settings apply immediately, no save button needed
@@ -67,8 +68,12 @@ Copy these to your project or install globally via the install script.
 1. Click the extension icon to open the popup
 2. Toggle **Enabled** to inject the widget
 3. Enable **MCP Sync** to forward annotations to the server
-4. Start the MCP server with `./mcp-server.sh` (or `mcp-server.bat` on Windows)
-5. In Claude Code, run `/ag:check` or `/ag:loop` to process annotations
+4. Enable **Console Errors** to capture runtime errors from the page
+   - With MCP Sync on: errors are automatically sent as annotations (`intent: fix`, `severity: blocking`)
+   - Without MCP: use **Copy errors** to copy deduplicated errors as markdown
+   - Duplicate errors are consolidated — only unique errors are sent/shown, with a repeat count
+5. Start the MCP server with `./mcp-server.sh` (or `mcp-server.bat` on Windows)
+6. In Claude Code, run `/ag:check` or `/ag:loop` to process annotations
 
 ## Tech stack
 

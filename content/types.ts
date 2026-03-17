@@ -3,6 +3,7 @@ export interface ExtensionConfig {
   mcpSync: boolean;
   mcpUrl: string;
   disabledSites: string[];
+  consoleCapture: boolean;
 }
 
 export const DEFAULT_CONFIG: ExtensionConfig = {
@@ -10,6 +11,7 @@ export const DEFAULT_CONFIG: ExtensionConfig = {
   mcpSync: false,
   mcpUrl: 'http://localhost:4747',
   disabledSites: [],
+  consoleCapture: false,
 };
 
 /** Type-safe wrapper for chrome.storage.sync.get */

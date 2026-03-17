@@ -19,6 +19,13 @@ const mcpDetailEl = $<HTMLDivElement>('mcpDetail');
 const blockSiteBtn = $<HTMLButtonElement>('blockSite');
 const currentHostnameEl = $<HTMLElement>('currentHostname');
 const blockedListEl = $<HTMLDivElement>('blockedList');
+const consoleCaptureEl = $<HTMLInputElement>('consoleCapture');
+const consoleDot = $<HTMLElement>('consoleDot');
+const consoleStatusText = $<HTMLElement>('consoleStatusText');
+const consoleActionsEl = $<HTMLDivElement>('consoleActions');
+const errorCountEl = $<HTMLElement>('errorCount');
+const copyErrorsBtn = $<HTMLButtonElement>('copyErrors');
+const clearErrorsBtn = $<HTMLButtonElement>('clearErrors');
 
 declare const __AGENTATION_VERSION__: string;
 
@@ -58,6 +65,8 @@ function checkMcpStatus(url: string): void {
         mcpDot.className = 'dot dot--on';
         mcpStatusText.textContent = 'Online';
         copyCmdBtn.style.display = 'none';
+        mcpIsOnline = true;
+        updateConsoleErrorsUI(consoleCaptureEl.checked);
       } else {
         setMcpOffline();
       }
@@ -71,6 +80,8 @@ function setMcpOffline(): void {
   mcpDot.className = 'dot dot--off';
   mcpStatusText.textContent = 'Offline';
   copyCmdBtn.style.display = 'inline-flex';
+  mcpIsOnline = false;
+  updateConsoleErrorsUI(consoleCaptureEl.checked);
 }
 
 // Copy start command
@@ -169,6 +180,8 @@ getConfig((config) => {
   enabledEl.checked = config.enabled;
   mcpSyncEl.checked = config.mcpSync;
   mcpUrlEl.value = config.mcpUrl;
+  consoleCaptureEl.checked = config.consoleCapture;
+  updateConsoleErrorsUI(config.consoleCapture);
   renderBlockedList();
   updateBlockButton();
   updatePageStatus();
@@ -198,12 +211,15 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     }
   }
 
-  // Only query content script for session ID
+  // Query content script for session ID and error count
   chrome.tabs.sendMessage(tab.id, { type: 'GET_STATUS' }, (response) => {
     if (chrome.runtime.lastError || !response) return;
     if (response.sessionId) {
       sessionField.style.display = 'block';
       sessionIdEl.textContent = response.sessionId;
+    }
+    if (response.errorCount > 0) {
+      showErrorCount(response.errorCount);
     }
   });
 });
@@ -223,11 +239,13 @@ function saveConfig(): void {
     enabled: enabledEl.checked,
     mcpSync: mcpSyncEl.checked,
     mcpUrl: McpBridge.isLocalUrl(mcpUrlEl.value.trim()) ? mcpUrlEl.value.trim() : DEFAULT_CONFIG.mcpUrl,
+    consoleCapture: consoleCaptureEl.checked,
   };
 
   setConfig(currentConfig);
   updatePageStatus();
   updateMcpDetail(currentConfig.mcpSync);
+  updateConsoleErrorsUI(currentConfig.consoleCapture);
 
   // Re-check MCP status when relevant settings change
   if (currentConfig.mcpSync && currentConfig.mcpUrl) {
@@ -236,6 +254,8 @@ function saveConfig(): void {
     mcpDot.className = 'dot dot--off';
     mcpStatusText.textContent = 'Disabled';
     copyCmdBtn.style.display = 'none';
+    mcpIsOnline = false;
+    updateConsoleErrorsUI(currentConfig.consoleCapture);
   }
 }
 
@@ -248,6 +268,61 @@ function saveConfigDebounced(): void {
 // Toggles — save immediately
 enabledEl.addEventListener('change', saveConfig);
 mcpSyncEl.addEventListener('change', saveConfig);
+consoleCaptureEl.addEventListener('change', () => {
+  saveConfig();
+  updateConsoleErrorsUI(consoleCaptureEl.checked);
+});
 
 // Text inputs — save after typing stops
 mcpUrlEl.addEventListener('input', saveConfigDebounced);
+
+// --- Console Errors ---
+
+let mcpIsOnline = false;
+
+function updateConsoleErrorsUI(enabled: boolean): void {
+  consoleActionsEl.style.display = enabled ? 'flex' : 'none';
+  if (!enabled) {
+    consoleDot.className = 'dot dot--off';
+    consoleStatusText.textContent = 'Disabled';
+  } else if (currentConfig.mcpSync && mcpIsOnline) {
+    consoleDot.className = 'dot dot--on';
+    consoleStatusText.textContent = 'Sending to MCP';
+  } else {
+    consoleDot.className = 'dot dot--off';
+    consoleStatusText.textContent = 'Capture only';
+  }
+}
+
+function showErrorCount(count: number): void {
+  errorCountEl.textContent = `${count} error${count !== 1 ? 's' : ''}`;
+  errorCountEl.style.display = 'inline';
+}
+
+function getActiveTabId(cb: (tabId: number) => void): void {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs[0]?.id) cb(tabs[0].id);
+  });
+}
+
+copyErrorsBtn.addEventListener('click', () => {
+  getActiveTabId((tabId) => {
+    chrome.tabs.sendMessage(tabId, { type: 'GET_CONSOLE_ERRORS' }, (response) => {
+      if (chrome.runtime.lastError || !response) return;
+      if (response.markdown) {
+        navigator.clipboard.writeText(response.markdown);
+        copyErrorsBtn.classList.add('copied');
+        setTimeout(() => copyErrorsBtn.classList.remove('copied'), 1200);
+      }
+    });
+  });
+});
+
+clearErrorsBtn.addEventListener('click', () => {
+  getActiveTabId((tabId) => {
+    chrome.tabs.sendMessage(tabId, { type: 'CLEAR_CONSOLE_ERRORS' }, () => {
+      if (chrome.runtime.lastError) return;
+      showErrorCount(0);
+    });
+  });
+});

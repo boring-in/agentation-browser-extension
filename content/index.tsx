@@ -3,6 +3,15 @@ import { createRoot, Root } from 'react-dom/client';
 import { Agentation } from 'agentation';
 import { DEFAULT_CONFIG, getConfig, isSiteDisabled, type ExtensionConfig } from './types';
 import { McpBridge } from './mcp-bridge';
+import {
+  injectConsoleInterceptor,
+  startListening,
+  getCapturedErrors,
+  clearCapturedErrors,
+  formatErrorsMarkdown,
+  errorToAnnotation,
+  type ConsoleError,
+} from './console-capture';
 
 let root: Root | null = null;
 let shadowContainer: ShadowRoot | null = null;
@@ -10,6 +19,7 @@ let currentSessionId: string | null = null;
 let currentConfig: ExtensionConfig = DEFAULT_CONFIG;
 let bridge: McpBridge | null = null;
 let bridgeUrl: string = '';
+let consoleInterceptorInjected = false;
 
 function getProjectId(): string {
   const { hostname, port, protocol } = window.location;
@@ -71,6 +81,13 @@ function render(config: ExtensionConfig): void {
     bridgeUrl = '';
   }
 
+  // Console error capture
+  if (config.consoleCapture && !consoleInterceptorInjected) {
+    injectConsoleInterceptor();
+    startListening(onConsoleError);
+    consoleInterceptorInjected = true;
+  }
+
   root.render(
     <Agentation
       onAnnotationAdd={bridge ? async (a) => {
@@ -82,6 +99,14 @@ function render(config: ExtensionConfig): void {
       onAnnotationsClear={bridge ? (a) => bridge!.clearAnnotations(a) : undefined}
     />
   );
+}
+
+function onConsoleError(err: ConsoleError, isNew: boolean): void {
+  // Send to MCP only for new unique errors
+  if (isNew && bridge && currentConfig.mcpSync) {
+    const annotation = errorToAnnotation(err);
+    bridge.addAnnotation(annotation).then(() => syncSessionIdToPopup());
+  }
 }
 
 function unmount(): void {
@@ -110,7 +135,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       injected: !!root,
       sessionId: currentSessionId,
       isIframe,
+      errorCount: getCapturedErrors().length,
     });
+    return true;
+  }
+
+  if (message.type === 'GET_CONSOLE_ERRORS') {
+    sendResponse({
+      errors: getCapturedErrors(),
+      markdown: formatErrorsMarkdown(getCapturedErrors()),
+    });
+    return true;
+  }
+
+  if (message.type === 'CLEAR_CONSOLE_ERRORS') {
+    clearCapturedErrors();
+    sendResponse({ ok: true });
     return true;
   }
 });
