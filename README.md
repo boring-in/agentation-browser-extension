@@ -18,7 +18,7 @@ Chrome extension that injects the [Agentation](https://github.com/benjitaylor/ag
 ## Install
 
 ```bash
-git clone <repo-url> && cd agentation-browser-extension
+git clone https://github.com/boring-in/agentation-browser-extension.git && cd agentation-browser-extension
 
 # Linux / macOS
 ./install.sh
