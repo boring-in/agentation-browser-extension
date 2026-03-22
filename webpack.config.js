@@ -6,6 +6,7 @@ const agentationVersion = require('./node_modules/agentation/package.json').vers
 module.exports = {
   entry: {
     content: './content/index.tsx',
+    'console-injector': './content/console-injector.ts',
     popup: './popup/popup.ts',
     background: './background/service-worker.ts',
   },

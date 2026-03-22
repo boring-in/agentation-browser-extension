@@ -1,4 +1,5 @@
-import type { Annotation } from 'agentation';
+/** Loose annotation type — avoids static import of agentation */
+type Annotation = Record<string, unknown> & { id: string };
 
 /**
  * MCP sync bridge — sends annotation events to agentation-mcp HTTP server.

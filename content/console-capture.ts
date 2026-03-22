@@ -1,5 +1,3 @@
-import type { Annotation } from 'agentation';
-
 export interface ConsoleError {
   id: string;
   message: string;
@@ -12,57 +10,9 @@ export interface ConsoleError {
   lastSeen: number;
 }
 
+/** Must match constants in console-injector.ts */
+const ATTR = 'data-agentation-errors';
 const CHANNEL = 'agentation-console-error';
-
-/**
- * Inject a tiny script into the page's main world to intercept console.error.
- * Page-world errors are forwarded to the content script via postMessage.
- */
-export function injectConsoleInterceptor(): void {
-  const script = document.createElement('script');
-  script.textContent = `(function(){
-    if(window.__agentationConsoleHooked) return;
-    window.__agentationConsoleHooked = true;
-    var orig = console.error;
-    console.error = function(){
-      try {
-        var args = Array.prototype.slice.call(arguments);
-        var msg = args.map(function(a){
-          if(a instanceof Error) return a.stack || a.message;
-          if(typeof a === 'object') try{ return JSON.stringify(a) }catch(e){ return String(a) }
-          return String(a);
-        }).join(' ');
-        window.postMessage({type:'${CHANNEL}',payload:{
-          id: crypto.randomUUID(),
-          message: msg,
-          timestamp: Date.now()
-        }},'*');
-      }catch(e){}
-      return orig.apply(console, arguments);
-    };
-    window.addEventListener('error', function(e){
-      window.postMessage({type:'${CHANNEL}',payload:{
-        id: crypto.randomUUID(),
-        message: e.message,
-        source: e.filename,
-        lineno: e.lineno,
-        colno: e.colno,
-        stack: e.error && e.error.stack || '',
-        timestamp: Date.now()
-      }},'*');
-    });
-    window.addEventListener('unhandledrejection', function(e){
-      var msg = e.reason instanceof Error ? (e.reason.stack || e.reason.message) : String(e.reason);
-      window.postMessage({type:'${CHANNEL}',payload:{
-        id: crypto.randomUUID(),
-        message: 'Unhandled Promise Rejection: ' + msg,
-        timestamp: Date.now()
-      }},'*');
-    });
-  })();`;
-  (document.documentElement || document.head).appendChild(script);
-  script.remove();
-}
 
 /** Maximum unique errors to keep in memory */
 const MAX_ERRORS = 100;
@@ -73,17 +23,10 @@ const capturedErrors: ConsoleError[] = [];
 /** message -> index in capturedErrors for O(1) dedup lookup */
 const errorIndex = new Map<string, number>();
 
-/**
- * Deduplicate key: message + source + line.
- * Two identical messages from different sources are treated as separate errors.
- */
 function dedupeKey(msg: string, source?: string, lineno?: number): string {
   return `${msg}\0${source ?? ''}\0${lineno ?? ''}`;
 }
 
-/**
- * Returns true if the error is new (first occurrence), false if duplicate.
- */
 function addOrMerge(incoming: ConsoleError): boolean {
   const key = dedupeKey(incoming.message, incoming.source, incoming.lineno);
   const existingIdx = errorIndex.get(key);
@@ -95,12 +38,9 @@ function addOrMerge(incoming: ConsoleError): boolean {
     return false;
   }
 
-  // New unique error
   if (capturedErrors.length >= MAX_ERRORS) {
-    // Remove oldest and its index entry
     const removed = capturedErrors.shift()!;
     errorIndex.delete(dedupeKey(removed.message, removed.source, removed.lineno));
-    // Rebuild indices after shift
     errorIndex.clear();
     capturedErrors.forEach((e, i) => {
       errorIndex.set(dedupeKey(e.message, e.source, e.lineno), i);
@@ -114,15 +54,48 @@ function addOrMerge(incoming: ConsoleError): boolean {
   return true;
 }
 
-/** Start listening for forwarded errors from the page world */
+let errorCallback: ((err: ConsoleError, isNew: boolean) => void) | null = null;
+
+function processRawError(raw: Record<string, unknown>): void {
+  const err = raw as unknown as ConsoleError;
+  const isNew = addOrMerge(err);
+  if (errorCallback) {
+    errorCallback(err, isNew);
+  }
+}
+
+/**
+ * Self-initializing: listen for postMessage from the MAIN world injector.
+ * postMessage is the recommended way to communicate between MAIN and ISOLATED worlds.
+ */
+window.addEventListener('message', (event) => {
+  if (event.source !== window) return;
+  if (event.data?.type !== CHANNEL) return;
+  const payload = event.data.payload;
+  if (payload) {
+    processRawError(payload);
+  }
+});
+
+/**
+ * Register callback for error notifications.
+ * On first call, reads the DOM attribute buffer to pick up any errors
+ * that fired before the content script loaded (MAIN world runs at document_start,
+ * content script runs at document_idle).
+ */
 export function startListening(onError: (err: ConsoleError, isNew: boolean) => void): void {
-  window.addEventListener('message', (event) => {
-    if (event.source !== window) return;
-    if (event.data?.type !== CHANNEL) return;
-    const err = event.data.payload as ConsoleError;
-    const isNew = addOrMerge(err);
-    onError(err, isNew);
-  });
+  errorCallback = onError;
+
+  // Read buffered errors from DOM attribute (set by MAIN world injector)
+  try {
+    const raw = document.documentElement.getAttribute(ATTR);
+    if (raw) {
+      const buffered = JSON.parse(raw) as Record<string, unknown>[];
+      for (const err of buffered) {
+        processRawError(err);
+      }
+    }
+  } catch { /* malformed */ }
 }
 
 export function getCapturedErrors(): ConsoleError[] {
@@ -134,8 +107,8 @@ export function clearCapturedErrors(): void {
   errorIndex.clear();
 }
 
-/** Convert a ConsoleError to an Annotation with synthetic element fields */
-export function errorToAnnotation(err: ConsoleError): Annotation {
+/** Convert a ConsoleError to an agentation-compatible annotation */
+export function errorToAnnotation(err: ConsoleError): Record<string, unknown> {
   const source = err.source ? ` (${err.source}:${err.lineno ?? '?'})` : '';
   return {
     id: err.id,

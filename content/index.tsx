@@ -1,10 +1,8 @@
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { Agentation } from 'agentation';
 import { DEFAULT_CONFIG, getConfig, isSiteDisabled, type ExtensionConfig } from './types';
 import { McpBridge } from './mcp-bridge';
 import {
-  injectConsoleInterceptor,
   startListening,
   getCapturedErrors,
   clearCapturedErrors,
@@ -13,13 +11,24 @@ import {
   type ConsoleError,
 } from './console-capture';
 
+// Guarded require — if agentation crashes on this page, console capture still works.
+// No static imports from 'agentation' allowed (even import type can leak in webpack).
+let AgentationComponent: React.ComponentType<any> | null = null;
+try {
+  // @ts-expect-error — webpack replaces require() at build time
+  const mod = require('agentation');
+  AgentationComponent = mod.Agentation ?? mod.PageFeedbackToolbarCSS;
+} catch {
+  // agentation library failed to load on this page — widget unavailable
+}
+
 let root: Root | null = null;
 let shadowContainer: ShadowRoot | null = null;
 let currentSessionId: string | null = null;
 let currentConfig: ExtensionConfig = DEFAULT_CONFIG;
 let bridge: McpBridge | null = null;
 let bridgeUrl: string = '';
-let consoleInterceptorInjected = false;
+let consoleListeningStarted = false;
 
 function getProjectId(): string {
   const { hostname, port, protocol } = window.location;
@@ -42,8 +51,6 @@ const isIframe = window !== window.top;
  */
 function shouldSkipFrame(): boolean {
   if (isIframe) return false; // always render inside iframes
-  // If the top frame contains a cross-origin iframe with our widget,
-  // we'd get duplicates. Skip top frame on known embedded-app hosts.
   const host = window.location.hostname;
   const embeddedHosts = ['admin.shopify.com'];
   return embeddedHosts.some((h) => host === h || host.endsWith(`.${h}`));
@@ -54,6 +61,20 @@ function render(config: ExtensionConfig): void {
     unmount();
     return;
   }
+
+  // Bridge lifecycle: create/recreate only when mcpUrl changes
+  if (config.mcpSync && config.mcpUrl) {
+    if (!bridge || bridgeUrl !== config.mcpUrl) {
+      bridge = new McpBridge(config.mcpUrl, getProjectId());
+      bridgeUrl = config.mcpUrl;
+    }
+  } else {
+    bridge = null;
+    bridgeUrl = '';
+  }
+
+  // Can't render if agentation library failed to load
+  if (!AgentationComponent) return;
 
   if (!shadowContainer) {
     if (!document.body) return;
@@ -70,42 +91,24 @@ function render(config: ExtensionConfig): void {
     root = createRoot(mountPoint);
   }
 
-  // Bridge lifecycle: create/recreate only when mcpUrl changes
-  if (config.mcpSync && config.mcpUrl) {
-    if (!bridge || bridgeUrl !== config.mcpUrl) {
-      bridge = new McpBridge(config.mcpUrl, getProjectId());
-      bridgeUrl = config.mcpUrl;
-    }
-  } else {
-    bridge = null;
-    bridgeUrl = '';
-  }
-
-  // Console error capture
-  if (config.consoleCapture && !consoleInterceptorInjected) {
-    injectConsoleInterceptor();
-    startListening(onConsoleError);
-    consoleInterceptorInjected = true;
-  }
-
+  const Widget = AgentationComponent;
   root.render(
-    <Agentation
-      onAnnotationAdd={bridge ? async (a) => {
+    <Widget
+      onAnnotationAdd={bridge ? async (a: any) => {
         await bridge!.addAnnotation(a);
         syncSessionIdToPopup();
       } : undefined}
-      onAnnotationDelete={bridge ? (a) => bridge!.deleteAnnotation(a) : undefined}
-      onAnnotationUpdate={bridge ? (a) => bridge!.updateAnnotation(a) : undefined}
-      onAnnotationsClear={bridge ? (a) => bridge!.clearAnnotations(a) : undefined}
+      onAnnotationDelete={bridge ? (a: any) => bridge!.deleteAnnotation(a) : undefined}
+      onAnnotationUpdate={bridge ? (a: any) => bridge!.updateAnnotation(a) : undefined}
+      onAnnotationsClear={bridge ? (a: any[]) => bridge!.clearAnnotations(a) : undefined}
     />
   );
 }
 
 function onConsoleError(err: ConsoleError, isNew: boolean): void {
-  // Send to MCP only for new unique errors
   if (isNew && bridge && currentConfig.mcpSync) {
     const annotation = errorToAnnotation(err);
-    bridge.addAnnotation(annotation).then(() => syncSessionIdToPopup());
+    bridge.addAnnotation(annotation as any).then(() => syncSessionIdToPopup());
   }
 }
 
@@ -122,10 +125,18 @@ function unmount(): void {
   currentSessionId = null;
 }
 
+function initConsoleCapture(config: ExtensionConfig): void {
+  if (config.consoleCapture && !consoleListeningStarted) {
+    startListening(onConsoleError);
+    consoleListeningStarted = true;
+  }
+}
+
 // Listen for messages from background
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'CONFIG_CHANGED') {
     currentConfig = message.config;
+    initConsoleCapture(currentConfig);
     render(currentConfig);
   }
 
@@ -158,5 +169,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Initial mount
 getConfig((config) => {
   currentConfig = config;
+  initConsoleCapture(config);
   render(currentConfig);
 });
